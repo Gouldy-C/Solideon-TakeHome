@@ -1,179 +1,197 @@
 import os
 import re
-import tempfile
 import zipfile
+import tempfile
+from typing import Dict, Optional, Tuple
+
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
+
 from database.db import get_session
-from database.models import WeldGroup, Layer, Waypoint, WeldSample
+from database.models import Layer, Waypoint, WeldSample, WeldGroup
 from utils.parsers import parse_scandata, parse_welddat
 from utils.transforms import transform_scan_value
 
+# Filenames like: w001_scandata.txt, w001_welddat.txt
 PAIR_RE = re.compile(r"^w(\d+)_([a-zA-Z]+)\.txt$")
 
 
-def _pair_files(data_dir: str):
-    files = [f for f in os.listdir(data_dir) if f.endswith(".txt")]
-    layers = {}
-    for f in files:
-        m = PAIR_RE.match(f)
-        if not m:
-            continue
-        num = int(m.group(1))
-        kind = m.group(2).lower()
-        entry = layers.setdefault(num, {"scandata": None, "welddat": None})
-        if "scan" in kind:
-            entry["scandata"] = os.path.join(data_dir, f)
-        elif "weld" in kind:
-            entry["welddat"] = os.path.join(data_dir, f)
+def _safe_extractall(zf: zipfile.ZipFile, dest: str) -> None:
+    """
+    Prevent Zip Slip. Ensures no file escapes 'dest'.
+    """
+    dest_real = os.path.realpath(dest)
+    for member in zf.infolist():
+        member_path = os.path.realpath(os.path.join(dest, member.filename))
+        if not member_path.startswith(dest_real + os.sep) and member_path != dest_real:
+            raise ValueError(f"Illegal path in archive: {member.filename}")
+    zf.extractall(dest)
+
+
+def _pair_files(root_dir: str) -> Dict[int, Dict[str, Optional[str]]]:
+    """
+    Recursively scan for .txt files that match PAIR_RE and build pairs per layer.
+    Returns: {layer_number: {'scandata': path, 'welddat': path}}
+    """
+    layers: Dict[int, Dict[str, Optional[str]]] = {}
+    for dirpath, _, filenames in os.walk(root_dir):
+        for fname in filenames:
+            if not fname.lower().endswith(".txt"):
+                continue
+            m = PAIR_RE.match(fname)
+            if not m:
+                continue
+            num = int(m.group(1))
+            kind = m.group(2).lower()
+            entry = layers.setdefault(num, {"scandata": None, "welddat": None})
+            full_path = os.path.join(dirpath, fname)
+            if "scan" in kind:
+                entry["scandata"] = full_path
+            elif "weld" in kind:
+                entry["welddat"] = full_path
     return layers
 
 
-def _get_or_create_group(session, group_name: str) -> WeldGroup:
-    group = session.exec(
+def _create_group_or_raise_exists(session, group_name: str) -> WeldGroup:
+    existing = session.exec(
         select(WeldGroup).where(WeldGroup.name == group_name)
     ).first()
-    if not group:
-        group = WeldGroup(name=group_name)
-        session.add(group)
+    if existing:
+        raise ValueError("group_name_exists")
+    group = WeldGroup(name=group_name)
+    session.add(group)
+    try:
         session.commit()
-        session.refresh(group)
+    except IntegrityError:
+        session.rollback()
+        raise ValueError("group_name_exists")
+    session.refresh(group)
     return group
 
 
-def ingest_directory(data_dir: str, group_name: str = "default") -> dict:
+def _ingest_pair_into_layer(
+    session,
+    layer: Layer,
+    scandata_path: str,
+    welddat_path: str,
+) -> Tuple[int, int]:
+    """
+    Parse the two files and populate Waypoint and WeldSample for the given layer.
+    Returns (waypoint_count, sample_count).
+    """
+    with open(scandata_path, "r") as f:
+        scan_rows = parse_scandata(f)
+
+    waypoints: list[Waypoint] = []
+    for seq, raw, x, y, z, v in scan_rows:
+        waypoints.append(
+            Waypoint(
+                layer_id=layer.id,
+                seq=seq,
+                x=x,
+                y=y,
+                z=z,
+                scan_raw=raw,
+                scan_value=transform_scan_value(raw),
+                speed=v,
+            )
+        )
+    session.add_all(waypoints)
+
+    with open(welddat_path, "r") as f:
+        weld_rows = parse_welddat(f)
+
+    samples: list[WeldSample] = []
+    for seq, wfr, rs, cur, volt in weld_rows:
+        samples.append(
+            WeldSample(
+                layer_id=layer.id,
+                seq=seq,
+                wire_feed_rate=wfr,
+                robot_speed=rs,
+                current=cur,
+                voltage=volt,
+            )
+        )
+    session.add_all(samples)
+    session.commit()
+    return (len(waypoints), len(samples))
+
+
+def ingest_directory(
+    data_dir: str,
+    group_name: str = "default",
+) -> dict:
+    """
+    Ingest all pairs inside a directory tree. Layer number comes from 'w[digits]'.
+    scandata_file and welddat_file fields store basenames for reference.
+    """
     assert os.path.isdir(data_dir), f"Directory not found: {data_dir}"
     pairs = _pair_files(data_dir)
-    created_layers = 0
+
+    created, errors = 0, 0
+    details: list[dict] = []
 
     with get_session() as session:
-        group = _get_or_create_group(session, group_name)
+        # Require a brand-new group name
+        group = _create_group_or_raise_exists(session, group_name)
 
         for layer_number, files in sorted(pairs.items()):
-            if not files["scandata"] or not files["welddat"]:
+            scandata = files.get("scandata")
+            welddat = files.get("welddat")
+            if not scandata or not welddat:
+                errors += 1
+                details.append(
+                    {
+                        "layer_number": layer_number,
+                        "status": "error",
+                        "reason": "missing_pair",
+                    }
+                )
                 continue
 
             layer = Layer(
                 group_id=group.id,
                 layer_number=layer_number,
-                scandata_file=files["scandata"],
-                welddat_file=files["welddat"],
+                scandata_file=os.path.basename(scandata),
+                welddat_file=os.path.basename(welddat),
             )
             session.add(layer)
             session.commit()
             session.refresh(layer)
 
-            # Parse scan data -> waypoints
-            with open(files["scandata"], "r") as f:
-                scan_rows = parse_scandata(f)
+            wp_count, sm_count = _ingest_pair_into_layer(
+                session, layer, scandata, welddat
+            )
+            created += 1
+            details.append(
+                {
+                    "layer_number": layer_number,
+                    "status": "created",
+                    "waypoints": wp_count,
+                    "samples": sm_count,
+                }
+            )
 
-            waypoints = []
-            for seq, raw, x, y, z, v in scan_rows:
-                waypoints.append(
-                    Waypoint(
-                        layer_id=layer.id,
-                        seq=seq,
-                        x=x,
-                        y=y,
-                        z=z,
-                        scan_raw=raw,
-                        scan_value=transform_scan_value(raw),
-                        speed=v,
-                    )
-                )
-            session.add_all(waypoints)
-
-            # Parse weld data -> samples
-            with open(files["welddat"], "r") as f:
-                weld_rows = parse_welddat(f)
-
-            samples = []
-            for seq, wfr, rs, cur, volt in weld_rows:
-                samples.append(
-                    WeldSample(
-                        layer_id=layer.id,
-                        seq=seq,
-                        wire_feed_rate=wfr,
-                        robot_speed=rs,
-                        current=cur,
-                        voltage=volt,
-                    )
-                )
-            session.add_all(samples)
-            session.commit()
-            created_layers += 1
-
-    return {"group": group_name, "layers_ingested": created_layers}
+    return {
+        "group": group_name,
+        "created": created,
+        "errors": errors,
+        "details": details,
+    }
 
 
-def ingest_pair(
-    scandata_path: str,
-    welddat_path: str,
-    layer_number: int,
+def ingest_zip(
+    zip_path: str,
     group_name: str = "default",
 ) -> dict:
     """
-    Ingest a single layer pair from explicit file paths and layer number.
+    Extract a ZIP safely into a temp dir and ingest all pairs by filename.
     """
-    assert os.path.isfile(scandata_path), f"Missing file: {scandata_path}"
-    assert os.path.isfile(welddat_path), f"Missing file: {welddat_path}"
+    if not os.path.isfile(zip_path):
+        raise FileNotFoundError(f"Missing file: {zip_path}")
 
-    with get_session() as session:
-        group = _get_or_create_group(session, group_name)
-
-        layer = Layer(
-            group_id=group.id,
-            layer_number=layer_number,
-            scandata_file=scandata_path,
-            welddat_file=welddat_path,
-        )
-        session.add(layer)
-        session.commit()
-        session.refresh(layer)
-
-        with open(scandata_path, "r") as f:
-            scan_rows = parse_scandata(f)
-        waypoints = []
-        for seq, raw, x, y, z, v in scan_rows:
-            waypoints.append(
-                Waypoint(
-                    layer_id=layer.id,
-                    seq=seq,
-                    x=x,
-                    y=y,
-                    z=z,
-                    scan_raw=raw,
-                    scan_value=transform_scan_value(raw),
-                    speed=v,
-                )
-            )
-        session.add_all(waypoints)
-
-        with open(welddat_path, "r") as f:
-            weld_rows = parse_welddat(f)
-        samples = []
-        for seq, wfr, rs, cur, volt in weld_rows:
-            samples.append(
-                WeldSample(
-                    layer_id=layer.id,
-                    seq=seq,
-                    wire_feed_rate=wfr,
-                    robot_speed=rs,
-                    current=cur,
-                    voltage=volt,
-                )
-            )
-        session.add_all(samples)
-        session.commit()
-
-        return {"group": group_name, "layer_id": layer.id, "layer_number": layer.layer_number}
-
-
-def ingest_zip(zip_path: str, group_name: str = "default") -> dict:
-    """
-    Extract a ZIP and ingest all matching pairs inside.
-    """
-    assert os.path.isfile(zip_path), f"Missing file: {zip_path}"
     with tempfile.TemporaryDirectory() as td:
         with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(td)
+            _safe_extractall(zf, td)
         return ingest_directory(td, group_name=group_name)

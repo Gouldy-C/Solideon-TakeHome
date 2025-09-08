@@ -7,7 +7,7 @@ logger = getLogger(__name__)
 
 class WeldGroup(SQLModel, table=True):
     id: str = Field(default=uuid4(), primary_key=True)
-    name: str
+    name: str = Field(index=True, unique=True)
 
 class Layer(SQLModel, table=True):
     id: str = Field(default=uuid4(), primary_key=True)
