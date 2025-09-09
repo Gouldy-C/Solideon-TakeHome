@@ -1,23 +1,30 @@
 from typing import Optional
 from uuid import uuid4
 from sqlmodel import SQLModel, Field
-from logging import getLogger
+import logging
 
-logger = getLogger(__name__)
+logger = logging.getLogger(__name__)
+
+def _uuid() -> str:
+    return str(uuid4())
+
 
 class WeldGroup(SQLModel, table=True):
-    id: str = Field(default=uuid4(), primary_key=True)
-    name: str = Field(index=True, unique=True)
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    name: str = Field(index=True, sa_column_kwargs={"unique": True})
+    ingest_complete: bool = False
+
 
 class Layer(SQLModel, table=True):
-    id: str = Field(default=uuid4(), primary_key=True)
+    id: str = Field(default_factory=_uuid, primary_key=True)
     group_id: str = Field(foreign_key="weldgroup.id", index=True)
     layer_number: int = Field(index=True)
     scandata_file: Optional[str] = None
     welddat_file: Optional[str] = None
 
+
 class Waypoint(SQLModel, table=True):
-    id: str = Field(default=uuid4(), primary_key=True)
+    id: str = Field(default_factory=_uuid, primary_key=True)
     layer_id: str = Field(foreign_key="layer.id", index=True)
     seq: int = Field(index=True)
     x: float
@@ -27,8 +34,9 @@ class Waypoint(SQLModel, table=True):
     scan_value: Optional[float] = None
     speed: Optional[float] = None
 
-class WeldSample(SQLModel, table=True):
-    id: str = Field(default=uuid4(), primary_key=True)
+
+class WeldMetric(SQLModel, table=True):
+    id: str = Field(default_factory=_uuid, primary_key=True)
     layer_id: str = Field(foreign_key="layer.id", index=True)
     seq: int = Field(index=True)
     wire_feed_rate: Optional[float] = None
@@ -36,6 +44,5 @@ class WeldSample(SQLModel, table=True):
     current: Optional[float] = None
     voltage: Optional[float] = None
 
-
 def init_models() -> None:
-    logger.info("Initializing Models")
+    logger.info("Initializing models")

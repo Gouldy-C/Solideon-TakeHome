@@ -1,7 +1,7 @@
 import os
 import tempfile
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-
+from fastapi.concurrency import run_in_threadpool
 from app.services.ingest import ingest_zip
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
 @router.post("/upload-zip")
 async def upload_zip(
-    archive: UploadFile = File(
+    zip_file: UploadFile = File(
         ...,
         description="ZIP with wXXX_scandata.txt and wXXX_welddat.txt",
     ),
@@ -17,13 +17,16 @@ async def upload_zip(
 ):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tf:
-            while chunk := await archive.read(1024 * 1024):
+            while chunk := await zip_file.read(1024 * 1024):
                 tf.write(chunk)
             temp_zip_path = tf.name
-        await archive.close()
+        await zip_file.close()
 
         try:
-            result = ingest_zip(temp_zip_path, group_name=group_name)
+            # Offload the heavy, synchronous ingest to a thread
+            result = await run_in_threadpool(
+                ingest_zip, temp_zip_path, group_name=group_name
+            )
             return result
         finally:
             try:

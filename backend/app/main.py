@@ -1,15 +1,34 @@
-from database.db import test_db
-import utils.config_loader as cfg
+import os
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.database.db import init_db
+from app.utils.config_loader import init_load
 from pathlib import Path
-
-path = Path(__file__).parent / "config/v0.1"
-cfg.init_load(path)
-
-
-def main() -> None:
-    test_db()
-    print(cfg.CONFIG["equations_vars"]["distance_a"])
+from app.routers import (
+    groups,
+    layers,
+    ingest
+)
 
 
-if __name__ == "__main__":
-    main()
+def create_app() -> FastAPI:
+    app = FastAPI(title="AM Spatial Sensing Analytics API")
+    init_db()
+    init_load(Path(__file__).parent / "config/v0.1")
+
+    frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[frontend_origin],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(groups.router)
+    app.include_router(layers.router)
+    app.include_router(ingest.router)
+    return app
+
+
+app = create_app()

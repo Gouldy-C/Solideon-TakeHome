@@ -1,10 +1,33 @@
 from typing import List, Optional
 from pydantic import BaseModel
 
+
+class GroupOut(BaseModel):
+    id: str
+    name: str
+    layer_count: int
+    ingest_complete: bool
+
+
 class LayerOut(BaseModel):
-    id: int
-    group_id: int
+    id: str
+    group_id: str
     layer_number: int
+
+
+class GroupDetailOut(BaseModel):
+    id: str
+    name: str
+    layers: List[LayerOut]
+
+
+class LayerDetailOut(BaseModel):
+    id: str
+    group_id: str
+    layer_number: int
+    scandata_file: Optional[str] = None
+    welddat_file: Optional[str] = None
+
 
 class WaypointOut(BaseModel):
     seq: int
@@ -13,11 +36,32 @@ class WaypointOut(BaseModel):
     z: float
     scan_value: Optional[float] = None
 
+
+class WaypointWithLayerOut(BaseModel):
+    layer_id: str
+    layer_number: int
+    seq: int
+    x: float
+    y: float
+    z: float
+    scan_value: Optional[float] = None
+
+
 class MetricsSeriesPoint(BaseModel):
-    x: int  # seq index
+    x: int
     travel_speed: Optional[float] = None
     voltage: Optional[float] = None
     current: Optional[float] = None
+
+
+class MetricsSeriesPointWithLayer(BaseModel):
+    layer_id: str
+    layer_number: int
+    x: int  # seq within layer
+    travel_speed: Optional[float] = None
+    voltage: Optional[float] = None
+    current: Optional[float] = None
+
 
 class MetricsSummary(BaseModel):
     n: int
@@ -31,7 +75,21 @@ class MetricsSummary(BaseModel):
     current_min: Optional[float] = None
     current_max: Optional[float] = None
 
+
 class LayerMetricsOut(BaseModel):
-    layer_id: int
+    layer_id: str
     series: List[MetricsSeriesPoint]
     summary: MetricsSummary
+
+
+class LayerMetricsSummary(BaseModel):
+    layer_id: str
+    layer_number: int
+    summary: MetricsSummary
+
+
+class GroupMetricsOut(BaseModel):
+    group_id: str
+    name: str
+    summary: MetricsSummary
+    per_layer: List[LayerMetricsSummary]

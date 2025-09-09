@@ -7,10 +7,10 @@ from typing import Dict, Optional, Tuple
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from database.db import get_session
-from database.models import Layer, Waypoint, WeldSample, WeldGroup
-from utils.parsers import parse_scandata, parse_welddat
-from utils.transforms import transform_scan_value
+from app.database.db import get_session
+from app.database.models import Layer, Waypoint, WeldMetric, WeldGroup
+from app.utils.parsers import parse_scandata, parse_welddat
+from app.utils.transforms import transform_scan_value
 
 # Filenames like: w001_scandata.txt, w001_welddat.txt
 PAIR_RE = re.compile(r"^w(\d+)_([a-zA-Z]+)\.txt$")
@@ -101,10 +101,10 @@ def _ingest_pair_into_layer(
     with open(welddat_path, "r") as f:
         weld_rows = parse_welddat(f)
 
-    samples: list[WeldSample] = []
+    metrics: list[WeldMetric] = []
     for seq, wfr, rs, cur, volt in weld_rows:
-        samples.append(
-            WeldSample(
+        metrics.append(
+            WeldMetric(
                 layer_id=layer.id,
                 seq=seq,
                 wire_feed_rate=wfr,
@@ -113,9 +113,9 @@ def _ingest_pair_into_layer(
                 voltage=volt,
             )
         )
-    session.add_all(samples)
+    session.add_all(metrics)
     session.commit()
-    return (len(waypoints), len(samples))
+    return (len(waypoints), len(metrics))
 
 
 def ingest_directory(
@@ -169,9 +169,12 @@ def ingest_directory(
                     "layer_number": layer_number,
                     "status": "created",
                     "waypoints": wp_count,
-                    "samples": sm_count,
+                    "metrics": sm_count,
                 }
             )
+        group.ingest_complete = True
+        session.commit()
+        session.refresh(group)
 
     return {
         "group": group_name,

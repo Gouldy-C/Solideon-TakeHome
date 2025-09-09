@@ -1,4 +1,4 @@
-import utils.config_loader as cfg
+import app.utils.config_loader as cfg
 
 def transform_scan_value(raw: float) -> float:
     value_a = cfg.CONFIG["equations_vars"]["distance_a"]
