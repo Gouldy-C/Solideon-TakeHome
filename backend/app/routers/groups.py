@@ -5,15 +5,13 @@ from sqlmodel import select
 from fastapi.concurrency import run_in_threadpool
 
 from app.database.db import get_session
-from app.database.models import WeldGroup, Layer, Waypoint
+from app.database.models import WeldGroup, Layer
 from app.database.schemas import (
     GroupOut,
     GroupDetailOut,
     LayerOut,
-    WaypointWithLayerOut,
     GroupMetricsOut,
 )
-from app.services.compute_waypoints import compute_waypoints
 from app.services.compute_metrics import compute_group_metrics
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
