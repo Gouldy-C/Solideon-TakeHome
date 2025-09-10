@@ -19,15 +19,11 @@ router = APIRouter(prefix="/api/groups", tags=["groups"])
 
 @router.get("", response_model=List[GroupOut])
 async def list_groups(
-    limit: int = Query(25, ge=1, le=1000),
-    offset: int = Query(0, ge=0)
+    limit: int = Query(25, ge=1, le=1000), offset: int = Query(0, ge=0)
 ):
     with get_session() as session:
         groups = session.exec(
-            select(WeldGroup)
-            .order_by(WeldGroup.name)
-            .limit(limit)
-            .offset(offset)
+            select(WeldGroup).order_by(WeldGroup.name).limit(limit).offset(offset)
         ).all()
         ids = [g.id for g in groups]
         counts: Dict[str, int] = {}
@@ -39,16 +35,22 @@ async def list_groups(
             ).all()
             counts = {gid: cnt for gid, cnt in rows}
         items = [
-            GroupOut(id=g.id, name=g.name, layer_count=counts.get(g.id, 0), ingest_complete=g.ingest_complete) for g in groups
+            GroupOut(
+                id=g.id,
+                name=g.name,
+                layer_count=counts.get(g.id, 0),
+                ingest_complete=g.ingest_complete,
+                ingest_error=g.ingest_error,
+                status=g.status,
+            )
+            for g in groups
         ]
         return items
 
 
 @router.get("/{group_id}", response_model=GroupDetailOut)
 async def get_group(
-    group_id: str,
-    limit: int = Query(25, ge=1, le=1000),
-    offset: int = Query(0, ge=0)
+    group_id: str, limit: int = Query(25, ge=1, le=1000), offset: int = Query(0, ge=0)
 ):
     with get_session() as session:
         group = session.get(WeldGroup, group_id)
@@ -65,9 +67,14 @@ async def get_group(
         return GroupDetailOut(
             id=group.id,
             name=group.name,
+            ingest_complete=group.ingest_complete,
+            ingest_error=group.ingest_error,
+            status=group.status,
             layers=[
                 LayerOut(
-                    id=layer.id, group_id=layer.group_id, layer_number=layer.layer_number
+                    id=layer.id,
+                    group_id=layer.group_id,
+                    layer_number=layer.layer_number,
                 )
                 for layer in layers
             ],
@@ -77,9 +84,7 @@ async def get_group(
 @router.get("/{group_id}/metrics", response_model=GroupMetricsOut)
 async def get_group_metrics(group_id: str):
     try:
-        result = await run_in_threadpool(
-            compute_group_metrics, group_id
-        )
+        result = await run_in_threadpool(compute_group_metrics, group_id)
         return result
     except ValueError as ve:
         if str(ve) == "group_not_found":

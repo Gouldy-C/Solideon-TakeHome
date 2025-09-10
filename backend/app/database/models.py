@@ -13,6 +13,8 @@ class WeldGroup(SQLModel, table=True):
     id: str = Field(default_factory=_uuid, primary_key=True)
     name: str = Field(index=True, sa_column_kwargs={"unique": True})
     ingest_complete: bool = False
+    ingest_error: Optional[str] = None
+    status: Optional[str] = None
 
 
 class Layer(SQLModel, table=True):

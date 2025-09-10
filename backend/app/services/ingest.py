@@ -1,25 +1,19 @@
+# app/services/ingest.py
 import os
 import re
 import zipfile
 import tempfile
 from typing import Dict, Optional, Tuple
 
-from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
-
 from app.database.db import get_session
 from app.database.models import Layer, Waypoint, WeldMetric, WeldGroup
 from app.utils.parsers import parse_scandata, parse_welddat
 from app.utils.transforms import transform_scan_value
 
-# Filenames like: w001_scandata.txt, w001_welddat.txt
 PAIR_RE = re.compile(r"^w(\d+)_([a-zA-Z]+)\.txt$")
 
 
 def _safe_extractall(zf: zipfile.ZipFile, dest: str) -> None:
-    """
-    Prevent Zip Slip. Ensures no file escapes 'dest'.
-    """
     dest_real = os.path.realpath(dest)
     for member in zf.infolist():
         member_path = os.path.realpath(os.path.join(dest, member.filename))
@@ -29,10 +23,6 @@ def _safe_extractall(zf: zipfile.ZipFile, dest: str) -> None:
 
 
 def _pair_files(root_dir: str) -> Dict[int, Dict[str, Optional[str]]]:
-    """
-    Recursively scan for .txt files that match PAIR_RE and build pairs per layer.
-    Returns: {layer_number: {'scandata': path, 'welddat': path}}
-    """
     layers: Dict[int, Dict[str, Optional[str]]] = {}
     for dirpath, _, filenames in os.walk(root_dir):
         for fname in filenames:
@@ -52,33 +42,12 @@ def _pair_files(root_dir: str) -> Dict[int, Dict[str, Optional[str]]]:
     return layers
 
 
-def _create_group_or_raise_exists(session, group_name: str) -> WeldGroup:
-    existing = session.exec(
-        select(WeldGroup).where(WeldGroup.name == group_name)
-    ).first()
-    if existing:
-        raise ValueError("group_name_exists")
-    group = WeldGroup(name=group_name)
-    session.add(group)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        raise ValueError("group_name_exists")
-    session.refresh(group)
-    return group
-
-
 def _ingest_pair_into_layer(
     session,
     layer: Layer,
     scandata_path: str,
     welddat_path: str,
 ) -> Tuple[int, int]:
-    """
-    Parse the two files and populate Waypoint and WeldSample for the given layer.
-    Returns (waypoint_count, sample_count).
-    """
     with open(scandata_path, "r") as f:
         scan_rows = parse_scandata(f)
 
@@ -118,14 +87,7 @@ def _ingest_pair_into_layer(
     return (len(waypoints), len(metrics))
 
 
-def ingest_directory(
-    data_dir: str,
-    group_name: str = "default",
-) -> dict:
-    """
-    Ingest all pairs inside a directory tree. Layer number comes from 'w[digits]'.
-    scandata_file and welddat_file fields store basenames for reference.
-    """
+def ingest_directory_into_group(data_dir: str, group_id: str) -> dict:
     assert os.path.isdir(data_dir), f"Directory not found: {data_dir}"
     pairs = _pair_files(data_dir)
 
@@ -133,8 +95,9 @@ def ingest_directory(
     details: list[dict] = []
 
     with get_session() as session:
-        # Require a brand-new group name
-        group = _create_group_or_raise_exists(session, group_name)
+        group = session.get(WeldGroup, group_id)
+        if not group:
+            raise ValueError(f"group_not_found: {group_id}")
 
         for layer_number, files in sorted(pairs.items()):
             scandata = files.get("scandata")
@@ -172,29 +135,25 @@ def ingest_directory(
                     "metrics": sm_count,
                 }
             )
+
         group.ingest_complete = True
+        group.status = "ingested"
         session.commit()
         session.refresh(group)
 
     return {
-        "group": group_name,
+        "groupId": group_id,
         "created": created,
         "errors": errors,
         "details": details,
     }
 
 
-def ingest_zip(
-    zip_path: str,
-    group_name: str = "default",
-) -> dict:
-    """
-    Extract a ZIP safely into a temp dir and ingest all pairs by filename.
-    """
+def ingest_zip_into_group(zip_path: str, group_id: str) -> dict:
     if not os.path.isfile(zip_path):
         raise FileNotFoundError(f"Missing file: {zip_path}")
 
     with tempfile.TemporaryDirectory() as td:
         with zipfile.ZipFile(zip_path, "r") as zf:
             _safe_extractall(zf, td)
-        return ingest_directory(td, group_name=group_name)
+        return ingest_directory_into_group(td, group_id)

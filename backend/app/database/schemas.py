@@ -7,6 +7,8 @@ class GroupOut(BaseModel):
     name: str
     layer_count: int
     ingest_complete: bool
+    status: Optional[str]
+    ingest_error: Optional[str]
 
 
 class LayerOut(BaseModel):
@@ -19,6 +21,9 @@ class GroupDetailOut(BaseModel):
     id: str
     name: str
     layers: List[LayerOut]
+    ingest_complete: bool
+    status: Optional[str]
+    ingest_error: Optional[str]
 
 
 class LayerDetailOut(BaseModel):
