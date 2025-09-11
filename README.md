@@ -1,0 +1,48 @@
+## Solidion TakeHome — AM Spatial Sensing Analytics
+
+A small full‑stack app for ingesting additive‑manufacturing run data and visualizing per‑layer metrics. The backend exposes a FastAPI `/api` for groups, layers, and ingestion of zipped `scandata`/`welddat` logs; the frontend is a React + Vite dashboard with charts and a simple 3D scene.
+
+### Tech stack
+- **Backend**: FastAPI (Pydantic v2), SQLModel/SQLAlchemy, SQLite, Uvicorn
+- **Frontend**: React 19, TypeScript, Vite 7, Tailwind CSS v4, TanStack Router, TanStack Query, Radix UI
+- **Viz**: Recharts, Three.js via @react-three/fiber
+
+### Repository layout
+- `backend/`: FastAPI service and SQLite database (`app/database/ssa_dashboard.db`)
+- `frontend/`: React dashboard (Vite dev server on port 5173)
+
+### Quick start (Windows PowerShell)
+Open two terminals—one for the API and one for the UI.
+
+1) Backend API (http://127.0.0.1:8000)
+```powershell
+cd backend
+python -m venv .venv
+. .venv\Scripts\Activate.ps1
+pip install -r requirments.txt
+$env:FRONTEND_ORIGIN = "http://localhost:5173"
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+2) Frontend UI (http://localhost:5173)
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+API docs: visit `http://127.0.0.1:8000/docs`.
+
+If you change ports, make sure the backend CORS origin (`FRONTEND_ORIGIN`) matches the frontend URL, and update the frontend API base URL in `frontend/src/lib/api.ts` if needed.
+
+### Ingesting data (brief)
+POST a zip containing paired files like `w001_scandata.txt` and `w001_welddat.txt` to the backend:
+```bash
+curl -X POST "http://127.0.0.1:8000/api/ingest/upload-zip" \
+  -F zip_file=@path/to/data.zip \
+  -F group_name=my_run
+```
+
+See `backend/README.MD` and `frontend/README.md` for detailed instructions.
+
+
