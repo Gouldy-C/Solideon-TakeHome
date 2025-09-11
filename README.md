@@ -23,7 +23,12 @@ pip install -r requirments.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-2) Frontend UI (http://localhost:5173)
+If you feel like the backend is running too slowly. Run the API with more workers.
+```powershell
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+```
+
+1) Frontend UI (http://localhost:5173)
 ```powershell
 cd frontend
 npm install
