@@ -18,9 +18,8 @@ Open two terminals—one for the API and one for the UI.
 ```powershell
 cd backend
 python -m venv .venv
-. .venv\Scripts\Activate.ps1
+.venv\Scripts\Activate
 pip install -r requirments.txt
-$env:FRONTEND_ORIGIN = "http://localhost:5173"
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -36,6 +35,10 @@ API docs: visit `http://127.0.0.1:8000/docs`.
 If you change ports, make sure the backend CORS origin (`FRONTEND_ORIGIN`) matches the frontend URL, and update the frontend API base URL in `frontend/src/lib/api.ts` if needed.
 
 ### Ingesting data (brief)
+You can use the UI to ingest new data by clicking the upload zip button in the top right.
+
+or...
+
 POST a zip containing paired files like `w001_scandata.txt` and `w001_welddat.txt` to the backend:
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/ingest/upload-zip" \

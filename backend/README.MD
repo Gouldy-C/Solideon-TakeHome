@@ -10,13 +10,12 @@ FastAPI service that ingests additive‑manufacturing data and exposes read APIs
 ```powershell
 cd backend
 python -m venv .venv
-. .venv\Scripts\Activate.ps1
+.venv\Scripts\Activate
 pip install -r requirments.txt
 ```
 
 ### Run
 ```powershell
-$env:FRONTEND_ORIGIN = "http://localhost:5173"  # CORS allowed origin
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
