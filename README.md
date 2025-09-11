@@ -11,6 +11,14 @@ A small full‑stack app for ingesting additive‑manufacturing run data and vis
 - `backend/`: FastAPI service and SQLite database (`app/database/ssa_dashboard.db`)
 - `frontend/`: React dashboard (Vite dev server on port 5173)
 
+### Prerequisites
+Before running the Windows PowerShell commands below, install:
+
+- **Python**: Python 3.10+. Download: [Python downloads](https://www.python.org/downloads/). On Windows, check "Add Python to PATH" during setup.
+- **Node.js**: Node.js 18+ LTS (includes npm). Download: [Node.js downloads](https://nodejs.org/en/download/).
+
+After installing, close and reopen your PowerShell window so `python`, `pip`, `node`, and `npm` are available on your PATH.
+
 ### Quick start (Windows PowerShell)
 Open two terminals—one for the API and one for the UI.
 

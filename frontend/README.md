@@ -6,6 +6,10 @@ React dashboard for browsing weld groups, selecting layers, viewing 3D waypoints
 - Node.js 20+
 - npm 10+
 
+If Node.js isn't installed, download the LTS version (includes npm):
+
+- Node.js downloads: https://nodejs.org/en/download/
+
 ### Install & run (dev)
 ```powershell
 cd frontend

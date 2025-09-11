@@ -6,6 +6,10 @@ FastAPI service that ingests additive‑manufacturing data and exposes read APIs
 - Python 3.11+
 - Windows PowerShell examples below
 
+If Python isn't installed, download it from the official site and ensure it's on PATH:
+
+- Python downloads: https://www.python.org/downloads/
+
 ### Setup
 ```powershell
 cd backend
