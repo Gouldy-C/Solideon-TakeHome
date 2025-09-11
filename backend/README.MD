@@ -19,6 +19,11 @@ pip install -r requirments.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+If you feel like the backend is running too slowly. Run the API with more workers.
+```powershell
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+```
+
 - API base: `http://127.0.0.1:8000/api`
 - Docs: `http://127.0.0.1:8000/docs`
 
