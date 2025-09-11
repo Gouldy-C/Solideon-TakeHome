@@ -1,7 +1,6 @@
 # app/routers/ingest.py
 import os
 import tempfile
-from uuid import uuid4
 from fastapi import (
     APIRouter,
     UploadFile,

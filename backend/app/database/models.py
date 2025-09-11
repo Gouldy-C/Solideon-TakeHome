@@ -25,9 +25,10 @@ class Layer(SQLModel, table=True):
     welddat_file: Optional[str] = None
 
 
-class Waypoint(SQLModel, table=True):
+class ScanData(SQLModel, table=True):
     id: str = Field(default_factory=_uuid, primary_key=True)
     layer_id: str = Field(foreign_key="layer.id", index=True)
+    layer_number: int = Field(index=True)
     seq: int = Field(index=True)
     x: float
     y: float
@@ -37,10 +38,14 @@ class Waypoint(SQLModel, table=True):
     speed: Optional[float] = None
 
 
-class WeldMetric(SQLModel, table=True):
+class WeldData(SQLModel, table=True):
     id: str = Field(default_factory=_uuid, primary_key=True)
     layer_id: str = Field(foreign_key="layer.id", index=True)
+    layer_number: int = Field(index=True)
     seq: int = Field(index=True)
+    x: float
+    y: float
+    z: float
     wire_feed_rate: Optional[float] = None
     robot_speed: Optional[float] = None
     current: Optional[float] = None

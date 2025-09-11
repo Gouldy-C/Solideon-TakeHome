@@ -38,13 +38,13 @@ def parse_scandata(
 
 def parse_welddat(
     lines: Iterable[str],
-) -> List[Tuple[int, float, float, float, float]]:
+) -> List[Tuple[int, float, float, float, float, float, float, float]]:
     """
     Format:[Feedrate, CurrentValue, VoltageValue, Xpos, Ypos, Zpos, TravelSpeed]
-    Returns list of (seq, wire_feed_rate, robot_speed, current, voltage).
+    Returns list of (seq, wire_feed_rate, robot_speed, current, voltage, x, y, z).
     """
     seq = 0
-    out: List[Tuple[int, float, float, float, float]] = []
+    out: List[Tuple[int, float, float, float, float, float, float, float]] = []
     for line in lines:
         nums = _to_floats(line)
         if not nums:
@@ -55,6 +55,9 @@ def parse_welddat(
         cur = nums[1]
         volt = nums[2]
         rs = nums[6]
-        out.append((seq, wfr, rs, cur, volt))
+        x = nums[3]
+        y = nums[4]
+        z = nums[5]
+        out.append((seq, wfr, rs, cur, volt, x, y, z))
         seq += 1
     return out

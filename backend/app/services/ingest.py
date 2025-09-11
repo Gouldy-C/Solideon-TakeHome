@@ -6,7 +6,7 @@ import tempfile
 from typing import Dict, Optional, Tuple
 
 from app.database.db import get_session
-from app.database.models import Layer, Waypoint, WeldMetric, WeldGroup
+from app.database.models import Layer, ScanData, WeldData, WeldGroup
 from app.utils.parsers import parse_scandata, parse_welddat
 from app.utils.transforms import transform_scan_value
 
@@ -51,11 +51,12 @@ def _ingest_pair_into_layer(
     with open(scandata_path, "r") as f:
         scan_rows = parse_scandata(f)
 
-    waypoints: list[Waypoint] = []
+    waypoints: list[ScanData] = []
     for seq, raw, x, y, z, v in scan_rows:
         waypoints.append(
-            Waypoint(
+            ScanData(
                 layer_id=layer.id,
+                layer_number=layer.layer_number,
                 seq=seq,
                 x=x,
                 y=y,
@@ -70,16 +71,20 @@ def _ingest_pair_into_layer(
     with open(welddat_path, "r") as f:
         weld_rows = parse_welddat(f)
 
-    metrics: list[WeldMetric] = []
-    for seq, wfr, rs, cur, volt in weld_rows:
+    metrics: list[WeldData] = []
+    for seq, wfr, rs, cur, volt, x, y, z in weld_rows:
         metrics.append(
-            WeldMetric(
+            WeldData(
                 layer_id=layer.id,
+                layer_number=layer.layer_number,
                 seq=seq,
                 wire_feed_rate=wfr,
                 robot_speed=rs,
                 current=cur,
                 voltage=volt,
+                x=x,
+                y=y,
+                z=z,
             )
         )
     session.add_all(metrics)

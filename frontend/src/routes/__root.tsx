@@ -1,8 +1,10 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router'
-import { TopBar } from "../components/layout/TopBar";
+import { TopBar } from "../components/layouts/TopBar";
 
 
 function RootLayout() {
+  
+
   return (
     <div className="flex h-screen flex-col">
       <TopBar/>

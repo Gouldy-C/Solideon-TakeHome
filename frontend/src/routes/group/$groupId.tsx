@@ -1,3 +1,4 @@
+import GroupPage from '@/components/pages/GroupPage'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/group/$groupId')({
@@ -8,7 +9,7 @@ function RouteComponent() {
   const { groupId } = Route.useParams()
   return (
     <div>
-      <h1>Group {groupId}</h1>
+      <GroupPage groupId={groupId} />
     </div>
   )
 }

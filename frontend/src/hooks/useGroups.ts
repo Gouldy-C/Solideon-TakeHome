@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { type Group, type GroupMetrics, type Layer } from "../lib/types";
+import { type Group, type GroupData } from "../lib/types";
 
 export function useGroups(
   options?: {
@@ -12,7 +12,7 @@ export function useGroups(
   return useQuery({
     queryKey: ["groups"],
     queryFn: async () => {
-      const { data } = await api.get<Group[]>("/groups");
+      const { data }: { data: Group[] } = await api.get("/groups");
       return data;
     },
     staleTime: 60_000,
@@ -26,19 +26,19 @@ export function useGroup(groupId?: string) {
   return useQuery({
     queryKey: ["group", groupId],
     queryFn: async () => {
-      const { data } = await api.get(`/groups/${groupId}`);
-      return data as { group: Group; layers: Layer[] } | Group;
+      const { data }: { data: Group } = await api.get(`/groups/${groupId}`);
+      return data;
     },
     enabled: !!groupId,
   });
 }
 
-export function useGroupMetrics(groupId?: string) {
+export function useGroupData(groupId?: string) {
   return useQuery({
     queryKey: ["groupMetrics", groupId],
     queryFn: async () => {
-      const { data } = await api.get(`/groups/${groupId}/metrics`);
-      return data as GroupMetrics;
+      const { data } : { data: GroupData } = await api.get(`/groups/${groupId}/data`);
+      return data;
     },
     enabled: !!groupId,
   });
