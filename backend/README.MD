@@ -15,7 +15,7 @@ If Python isn't installed, download it from the official site and ensure it's on
 cd backend
 python -m venv .venv
 .venv\Scripts\Activate
-pip install -r requirments.txt
+pip install -r requirements.txt
 ```
 
 ### Run

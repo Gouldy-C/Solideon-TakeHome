@@ -27,7 +27,7 @@ Open two terminals—one for the API and one for the UI.
 cd backend
 python -m venv .venv
 .venv\Scripts\Activate
-pip install -r requirments.txt
+pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
